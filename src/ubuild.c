@@ -130,6 +130,10 @@ int main(int argc, const char *argv[]) {   // Entry point
     cfg.box_max.z = DEFAULT_BOX_MAX;
     cfg.flags = DEFAULT_FLAGS;
     
+    printf("\n%s Version %d.%d by %s\n",
+           SymUniverse_PROJECT_NAME, SymUniverse_VERSION_MAJOR,
+           SymUniverse_VERSION_MINOR, SymUniverse_PROJECT_AUTHOR);
+    
     // Parse args
     int ch;
     while((ch = getopt(argc, (char * const *)argv, "ho:T:n:m:r:c:b:B:f:")) != -1) {
