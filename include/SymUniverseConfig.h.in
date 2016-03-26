@@ -1,0 +1,9 @@
+#ifndef config_h
+#define config_h
+
+#define SymUniverse_PROJECT_NAME "@SymUniverse_PROJECT_NAME@"
+#define SymUniverse_PROJECT_AUTHOR "@SymUniverse_PROJECT_AUTHOR@"
+#define SymUniverse_VERSION_MAJOR @SymUniverse_VERSION_MAJOR@
+#define SymUniverse_VERSION_MINOR @SymUniverse_VERSION_MINOR@
+
+#endif /* config_h */
