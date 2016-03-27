@@ -55,13 +55,20 @@ const char *name(void) {                    // Required for name reporting.
 }
 
 EXPORT
-void *init(const char *cfg_str) {           // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
+void *init(char *cfg_str) {                 // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
     return (void *)cfg_str;                 // This void pointer refers to internal configuration.  Can be anything useful.
 }
 
 EXPORT
+void deinit(void *cfg) {                    // Called when pipeline is deconstructed.
+    
+}
+
+EXPORT
 void help(void) {
-    printf("[%s] This module doesn't do anything!\n", name_str);
+    MPRINTF("This module doesn't do anything!\n", NULL);
+    MPRINTF("Obviously, this has asymptotic performance O(1).\n", NULL);
+    MPRINTF("Example: -m dummy[]\n", NULL);
 }
 
 EXPORT

@@ -50,8 +50,8 @@ void help(const char *cmd) {
            "\t2. Copy current Slice to new Slice.\n"
            "\t3. Perform a set of transforms defined by modules on the new Slice.\n"
            "\t4. Append the new Slice to the Universe and set it as current.\n"
-           "\t5. Goto #2."
-           "All of the physics is handled in various modules."
+           "\t5. Goto #2.\n"
+           "All of the physics is handled in various modules.\n"
            "\n"
            "Usage: %s [options]\n"
            "Options:\n"
@@ -60,6 +60,7 @@ void help(const char *cmd) {
            "\t-o <file> : Out universe file (default: %s).\n"
            "\t-M <dir> : Directory to modules (default: %s).\n"
            "\t-t <steps> : Number of timesteps. -1 = infinite (default: %d)\n"
+           "\t\t Simulations can always be safely stopped with Ctrl^c (a second Ctrl^c forces immedate abort).\n"
            "\n"
            "-- Module Help --\n"
            "To add modules to the pipeline, use the syntax:\n"
@@ -67,11 +68,11 @@ void help(const char *cmd) {
            "\te.g. -m integrate[method=leapfrog,boundary=periodic]\n"
            "Modules are added to the pipeline in command line order.\n"
            "As a general rule add modules in this order: forces, integrate, collisions.\n"
-           "Details on specific modules and options are below:\n",
+           "Details on specific modules and options are below:\n\n",
            cmd, DEFAULT_IN_FILE, DEFAULT_OUT_FILE, DEFAULT_MODULE_PATH, DEFAULT_TIMESTEPS
     );
     for(int i = 0; i < cfg.nmodules; i++) {
-        printf("\nModule name: %s\n", cfg.modules[i].name());
+        printf("Module name: %s\n", cfg.modules[i].name());
         cfg.modules[i].help();
         printf("\n");
     }
@@ -87,6 +88,7 @@ void load_module(char *path) {
     m->cfg = NULL;
     m->name = dlsym(m->handle, "name");
     m->init = dlsym(m->handle, "init");
+    m->deinit = dlsym(m->handle, "deinit");
     m->help = dlsym(m->handle, "help");
     m->exec = dlsym(m->handle, "exec");
 }
@@ -117,6 +119,9 @@ void unload_modules() { // Should be called after pipeline is destroyed!
 }
 
 void free_pipeline() {
+    for(int i = 0; i < cfg.npipeline; i++) {
+        cfg.pipeline[i].deinit(cfg.pipeline[i].cfg);
+    }
     cfg.npipeline = 0;
     free(cfg.pipeline);
 }
@@ -140,7 +145,10 @@ void init_pipeline(int argc, char *argv[]) {
         margv = strsep(&margv, "]");
         Module *m = find_module_by_name(mname);
         memcpy(&cfg.pipeline[i], m, sizeof(Module));
-        cfg.pipeline[i].cfg = cfg.pipeline[i].init(margv);
+        if((cfg.pipeline[i].cfg = cfg.pipeline[i].init(margv)) == NULL) {
+            printf("Initialization of pipeline module, %s, failed!\n", mname);
+            exit(-1);
+        }
         printf(" %s %s", mname, (argc == i + 1) ? "" : "->");
     }
     printf("\n");

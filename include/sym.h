@@ -13,6 +13,8 @@
 
 #define DEFAULT_MODULE_PATH "modules/"
 
+#define MPRINTF(f_, ...) printf("[%s] " f_, name_str, __VA_ARGS__)
+
 // Module return flags
 #define MOD_RET_OK   0      // Execution was OK, do nothing special
 #define MOD_RET_ABRT 1      // Abort without appending current slice (i.e. something is wrong)
@@ -31,7 +33,8 @@ typedef struct {
     void        *cfg;
     const char  *(*name)(void);
     void        (*help)(void);
-    void        *(*init)(const char *cfg_str);
+    void        *(*init)(char *cfg_str);
+    void        (*deinit)(void *cfg);
     int         (*exec)(void *cfg, Slice *ps, Slice *s);
 } Module;
 
