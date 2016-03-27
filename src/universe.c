@@ -15,6 +15,22 @@
 #include "universe.h"
 #include "SymUniverseConfig.h"
 
+void vector_add(Vector *dst, Vector *a, Vector *b) {
+    dst->x = a->x + b->x;
+    dst->y = a->y + b->y;
+    dst->z = a->z + b->z;
+}
+
+void vector_sub(Vector *dst, Vector *a, Vector *b) {
+    dst->x = a->x - b->x;
+    dst->y = a->y - b->y;
+    dst->z = a->z - b->z;
+}
+
+double vector_dot(Vector *a, Vector *b) {
+    return a->x * b->x + a->y * b->y + a->z * b->z;
+}
+
 int slice_free(Slice *s) {
     free(s->bodies);
     free(s);

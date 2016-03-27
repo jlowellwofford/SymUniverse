@@ -1,5 +1,5 @@
 //
-//  main.c
+//  sym.c
 //  SymUniverse - Universe simulator
 //
 //  The function of gravgas is very simple.  It just iterates through timesteps, doing the following:
@@ -72,7 +72,7 @@ void help(const char *cmd) {
            cmd, DEFAULT_IN_FILE, DEFAULT_OUT_FILE, DEFAULT_MODULE_PATH, DEFAULT_TIMESTEPS
     );
     for(int i = 0; i < cfg.nmodules; i++) {
-        printf("Module name: %s\n", cfg.modules[i].name());
+        printf("Module name: %s\n", cfg.modules[i].name);
         cfg.modules[i].help();
         printf("\n");
     }
@@ -82,11 +82,14 @@ void load_module(char *path) {
     ++cfg.nmodules;
     cfg.modules = realloc(cfg.modules, sizeof(Module) * cfg.nmodules);
     Module *m = &cfg.modules[cfg.nmodules - 1];
-    
-    m->path = path;
-    m->handle = dlopen(m->path, RTLD_LAZY);
+
+    m->handle = dlopen(path, RTLD_LAZY);
+    if(m->handle == NULL) {
+        printf("Could not open module at %s.\n%s\n", path, dlerror());
+        exit(-1);
+    }
     m->cfg = NULL;
-    m->name = dlsym(m->handle, "name");
+    m->name = *(char **)dlsym(m->handle, "name");
     m->init = dlsym(m->handle, "init");
     m->deinit = dlsym(m->handle, "deinit");
     m->help = dlsym(m->handle, "help");
@@ -105,6 +108,7 @@ void load_modules() {
             char *full_path = calloc(strlen(cfg.module_path) + dir->d_namlen + 2, sizeof(char));
             sprintf(full_path, "%s/%s", cfg.module_path, dir->d_name);
             load_module(full_path);
+            free(full_path);
         }
     }
 }
@@ -112,7 +116,6 @@ void load_modules() {
 void unload_modules() { // Should be called after pipeline is destroyed!
     for(int i = 0; i < cfg.nmodules; i++) {
         dlclose(cfg.modules[i].handle);
-        free(cfg.modules[i].path);
     }
     cfg.nmodules = 0;
     free(cfg.modules);
@@ -128,7 +131,7 @@ void free_pipeline() {
 
 Module *find_module_by_name(const char *name) {
     for(int i = 0; i < cfg.nmodules; i++) {
-        if(strcmp(name, cfg.modules[i].name()) == 0) {
+        if(strcmp(name, cfg.modules[i].name) == 0) {
             return &cfg.modules[i];
         }
     }
@@ -136,8 +139,7 @@ Module *find_module_by_name(const char *name) {
 }
 
 void init_pipeline(int argc, char *argv[]) {
-    cfg.npipeline = argc;
-    cfg.pipeline = realloc(cfg.pipeline, sizeof(Module) * cfg.npipeline);
+    cfg.pipeline = realloc(cfg.pipeline, sizeof(Module) * argc);
     printf("Pipeline: ");
     for(int i = 0; i < argc; i++) {
         char *margv = argv[i];
@@ -149,6 +151,7 @@ void init_pipeline(int argc, char *argv[]) {
             printf("Initialization of pipeline module, %s, failed!\n", mname);
             exit(-1);
         }
+        ++cfg.npipeline;
         printf(" %s %s", mname, (argc == i + 1) ? "" : "->");
     }
     printf("\n");
@@ -180,8 +183,8 @@ int main(int argc, const char * argv[]) {   // Entry point
     cfg.modules = malloc(sizeof(Module));
     cfg.pipeline = malloc(sizeof(Module));
     
-    atexit(free_pipeline);
     atexit(unload_modules);
+    atexit(free_pipeline);
 
     printf("\n%s Version %d.%d by %s\n",
             SymUniverse_PROJECT_NAME, SymUniverse_VERSION_MAJOR, 
@@ -252,6 +255,7 @@ int main(int argc, const char * argv[]) {   // Entry point
     exit_loop = (cfg.timesteps == 0) ? 1 : 0;
     sigint_caught = 0;
     signal(SIGINT, catch_SIGINT);
+    setbuf(stdout, NULL);
     while(exit_loop == 0) {
         printf("\033[2K\rTimestep: %d/%d", loop_idx + 1, cfg.timesteps);
         int ret = 0;
@@ -279,9 +283,5 @@ int main(int argc, const char * argv[]) {   // Entry point
     slice_free(pslice);
     slice_free(slice);
     
-    // These are now handled by atexit
-    // free_pipeline();
-    // unload_modules();
-    // universe_close(cfg.universe);
     return 0;
 }

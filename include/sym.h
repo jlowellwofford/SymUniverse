@@ -13,7 +13,7 @@
 
 #define DEFAULT_MODULE_PATH "modules/"
 
-#define MPRINTF(f_, ...) printf("[%s] " f_, name_str, __VA_ARGS__)
+#define MPRINTF(f_, ...) printf("[%s] " f_, name, __VA_ARGS__)
 
 // Module return flags
 #define MOD_RET_OK   0      // Execution was OK, do nothing special
@@ -28,10 +28,9 @@
 // 4. exec (function)   execute the module transorm
 
 typedef struct {
-    char        *path;
     void        *handle;
     void        *cfg;
-    const char  *(*name)(void);
+    const char  *name;
     void        (*help)(void);
     void        *(*init)(char *cfg_str);
     void        (*deinit)(void *cfg);

@@ -39,7 +39,7 @@
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
-const char *name = "dummy";                 // Name _must_ be unique
+const char *name = "cleara";                 // Name _must_ be unique
 
 typedef struct {
     int configed;
@@ -69,12 +69,18 @@ void deinit(Config *cfg) {                    // Called when pipeline is deconst
 
 EXPORT
 void help(void) {
-    MPRINTF("This module doesn't do anything!\n", NULL);
-    MPRINTF("Obviously, this has asymptotic performance O(1).\n", NULL);
-    MPRINTF("Example: -m dummy\n", NULL);
+    MPRINTF("Simple module to clear accelerations (instead of using a force module).\n", NULL);
+    MPRINTF("Asymptotic performance: O(N).\n", NULL);
+    MPRINTF("This modules does not take any options.", NULL);
+    MPRINTF("Example: -m cleara\n", NULL);
 }
 
 EXPORT
 int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
+    for(int i = 0; i < s->nbody; i++) {
+        s->bodies[i].acc.x = 0;
+        s->bodies[i].acc.y = 0;
+        s->bodies[i].acc.z = 0;
+    }
     return MOD_RET_OK;                      // Return value can control flow of overall execution, see MOD_RET_*
 }

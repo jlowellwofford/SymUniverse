@@ -54,7 +54,8 @@
 
 static const char *_opt_str[_NOPT] = { "boundary", "method", "timestamp" };
 
-static const char *name_str = "integrate";      // Name _must_ be unique
+EXPORT
+const char *name = "integrate";      // Name _must_ be unique
 
 typedef struct {
     int (*boundary_method)(Slice *s, Particle *p);
@@ -176,18 +177,13 @@ static void finalizer(void) {               // Called when module is closed (dlc
 }
 
 EXPORT
-const char *name(void) {                    // Required for name reporting.
-    return name_str;
-}
-
-EXPORT
 void *init(char *cfg_str) {           // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
     Config *cfg = malloc(sizeof(Config));
     cfg->boundary_method = DEFAULT_BOUNDARY_METH;
     cfg->integration_method = DEFAULT_INTEGRATION_METH;
     cfg->timestep = DEFAULT_TIMESTEP;
     
-    while(cfg_str[0] != '\0') {
+    while(cfg_str != NULL && cfg_str[0] != '\0') {
         char *val = strsep(&cfg_str, ",");
         char *opt = strsep(&val, "=");
         switch(_get_opt_idx(opt)) {

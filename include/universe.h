@@ -71,6 +71,10 @@ typedef struct Universe {   // A universe: number of slices + slice array
 } Universe;
 
 // Function definitions
+void vector_add(Vector *dst, Vector *a, Vector *b);
+void vector_sub(Vector *dst, Vector *a, Vector *b);
+double vector_dot(Vector *a, Vector *b);
+
 int slice_free(Slice *s);
 Slice *slice_copy(Slice *s);
 void slice_pack(Slice *);

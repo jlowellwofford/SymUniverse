@@ -32,17 +32,21 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <math.h>
 #include "sym.h"
 #include "universe.h"
 #include "SymUniverseConfig.h"
 
 #define EXPORT __attribute__((visibility("default")))
 
+#define DEFAULT_CLEARA 0
+
 EXPORT
-const char *name = "dummy";                 // Name _must_ be unique
+const char *name = "fgrav";      // Name _must_ be unique
 
 typedef struct {
-    int configed;
+    int cleara;
 } Config;
 
 __attribute__((constructor))
@@ -57,8 +61,27 @@ static void finalizer(void) {               // Called when module is closed (dlc
 
 EXPORT
 void *init(char *cfg_str) {                 // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
+    
     Config *cfg = malloc(sizeof(Config));
-    cfg->configed = 1;
+    cfg->cleara = DEFAULT_CLEARA;
+
+    while(cfg_str != NULL && cfg_str[0] != '\0') {
+        char *val = strsep(&cfg_str, ",");
+        char *opt = strsep(&val, "=");
+        if(strcmp(opt, "cleara") == 0) {
+            cfg->cleara = atoi(val);
+            if(cfg->cleara != 0 && cfg->cleara != 1) {
+                MPRINTF("Option cleara accepts only 0 (disable) or 1 (enable)!\n", NULL);
+                free(cfg);
+                return NULL;
+            }
+        } else {
+            MPRINTF("Option not recognized! See help (-h) for options.\n", NULL);
+            free(cfg);
+            return NULL;
+        }
+    }
+    
     return (void *)cfg;                 // This void pointer refers to internal configuration.  Can be anything useful.
 }
 
@@ -69,12 +92,42 @@ void deinit(Config *cfg) {                    // Called when pipeline is deconst
 
 EXPORT
 void help(void) {
-    MPRINTF("This module doesn't do anything!\n", NULL);
-    MPRINTF("Obviously, this has asymptotic performance O(1).\n", NULL);
-    MPRINTF("Example: -m dummy\n", NULL);
+    MPRINTF("This module calculates gravitational acceleration.\n", NULL);
+    MPRINTF("This is a simplistic algorithm with asymptotic performance of O(NlogN).\n", NULL);
+    MPRINTF("Usually, force modules should come first in the pipeline, followed by integration and collision detection.\n", NULL);
+    MPRINTF("There is one available option:\n", NULL);
+    MPRINTF("\t- cleara: reset accelerations to zero before calculating?\n", NULL);
+    MPRINTF("\t\tTakes two options: 0 to disable, 1 to enable.\n", NULL);
+    MPRINTF("The first force module in the pipeline should set cleara=1.\n", NULL);
+    MPRINTF("Example: -m fgrav[cleara=1]\n", NULL);
 }
 
 EXPORT
 int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
+    // Slightly less efficient to do this separately, but makes the code reusable later
+    // (e.g. for a parallel version)
+    if(cfg->cleara) {
+        for(int i = 0; i < s->nbody; i++) {
+            s->bodies[i].acc.x = 0;
+            s->bodies[i].acc.y = 0;
+            s->bodies[i].acc.z = 0;
+        }
+    }
+    
+    // The calculation loop
+    for(int i = 0; i < s->nbody; i++) {
+        for(int j = i + 1; j < s->nbody; j++) {
+            Vector r;
+            vector_sub(&r, &s->bodies[i].pos, &s->bodies[j].pos);
+            double a = s->bodies[i].mass * s->bodies[j].mass / pow(vector_dot(&r, &r),1.5); // note: this pow() takes about 72% of total compute time
+            s->bodies[i].acc.x += a * r.x;
+            s->bodies[i].acc.y += a * r.y;
+            s->bodies[i].acc.z += a * r.z;
+            s->bodies[j].acc.x -= a * r.x;
+            s->bodies[j].acc.y -= a * r.y;
+            s->bodies[j].acc.z -= a * r.z;
+        }
+    }
+    
     return MOD_RET_OK;                      // Return value can control flow of overall execution, see MOD_RET_*
 }
