@@ -1,0 +1,5 @@
+file(GLOB LOCAL_INCLUDES "*.h")
+foreach(l IN ITEMS ${LIBRARIES})
+    add_library(${l} "${l}.c" ${INCLUDES} ${LOCAL_INCLUDES})
+endforeach(l)
+unset(LOCAL_INCLUDES)

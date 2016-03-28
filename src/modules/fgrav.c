@@ -1,6 +1,6 @@
 //
-//  mod_dummy.c
-//  SymUniverse - Dummy module that does nothing. Can be used as a template.
+//  fgrav.c
+//  SymUniverse - This module computes gravitational accelerations.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
 //  Copyright © 2016 J. Lowell Wofford. All rights reserved.
@@ -116,16 +116,19 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
     
     // The calculation loop
     for(int i = 0; i < s->nbody; i++) {
+        if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
         for(int j = i + 1; j < s->nbody; j++) {
+            if(s->bodies[j].flags & PARTICLE_FLAG_DELETE) { continue; }
             Vector r;
             vector_sub(&r, &s->bodies[i].pos, &s->bodies[j].pos);
-            double a = s->bodies[i].mass * s->bodies[j].mass / pow(vector_dot(&r, &r),1.5); // note: this pow() takes about 72% of total compute time
-            s->bodies[i].acc.x += a * r.x;
-            s->bodies[i].acc.y += a * r.y;
-            s->bodies[i].acc.z += a * r.z;
-            s->bodies[j].acc.x -= a * r.x;
-            s->bodies[j].acc.y -= a * r.y;
-            s->bodies[j].acc.z -= a * r.z;
+            double f = pow(vector_dot(&r, &r),-1.5); // note: this pow() takes about 75% of total compute time
+                                                     // consider pre-computing a table?
+            s->bodies[i].acc.x += s->bodies[j].mass * f * r.x;
+            s->bodies[i].acc.y += s->bodies[j].mass * f * r.y;
+            s->bodies[i].acc.z += s->bodies[j].mass * f * r.z;
+            s->bodies[j].acc.x -= s->bodies[i].mass * f * r.x;
+            s->bodies[j].acc.y -= s->bodies[i].mass * f * r.y;
+            s->bodies[j].acc.z -= s->bodies[i].mass * f * r.z;
         }
     }
     

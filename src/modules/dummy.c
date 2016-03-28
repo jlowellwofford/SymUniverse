@@ -1,5 +1,5 @@
 //
-//  mod_dummy.c
+//  dummy.c
 //  SymUniverse - Dummy module that does nothing. Can be used as a template.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
@@ -31,6 +31,7 @@
 // -- FINAL NOTE: A module can do just about anything.  Be clear to the user what to expect.
 
 #include <stdio.h>
+#include <stdlib.h>
 #include "sym.h"
 #include "universe.h"
 #include "SymUniverseConfig.h"
@@ -38,7 +39,11 @@
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
-const char *name = "hscollide";      // Name _must_ be unique
+const char *name = "dummy";                 // Name _must_ be unique
+
+typedef struct {
+    int configed;
+} Config;
 
 __attribute__((constructor))
 static void initializer(void) {             // Called when module is opened (dlopen)
@@ -52,20 +57,24 @@ static void finalizer(void) {               // Called when module is closed (dlc
 
 EXPORT
 void *init(char *cfg_str) {                 // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
-    return (void *)cfg_str;                 // This void pointer refers to internal configuration.  Can be anything useful.
+    Config *cfg = malloc(sizeof(Config));
+    cfg->configed = 1;
+    return (void *)cfg;                 // This void pointer refers to internal configuration.  Can be anything useful.
 }
 
 EXPORT
-void deinit(void *cfg) {                    // Called when pipeline is deconstructed.
-    
+void deinit(Config *cfg) {                    // Called when pipeline is deconstructed.
+    free(cfg);
 }
 
 EXPORT
 void help(void) {
-    MPRINTF("This module resolves hard sphere collisions.\n", NULL);
+    MPRINTF("This module doesn't do anything!\n", NULL);
+    MPRINTF("Obviously, this has asymptotic performance O(1).\n", NULL);
+    MPRINTF("Example: -m dummy\n", NULL);
 }
 
 EXPORT
-int exec(void *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
+int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
     return MOD_RET_OK;                      // Return value can control flow of overall execution, see MOD_RET_*
 }

@@ -30,6 +30,9 @@
 
 #include <stdint.h>
 
+#define UNIVERSE_STRING "Universe Data File"    // Must be < char[32] (including null term)
+#define UNIVERSE_VERSION 1                      // Data file version
+
 #define PARTICLE_FLAG_DELETE 1      // Indicates a particle is to be deleted
 #define PARTICLE_FLAG_CREATE 2      // Keeps track of particles that weren't part of the original universe
 #define PARTICLE_FLAG_NOCOLL 4      // This particle doesn't collide
@@ -70,10 +73,19 @@ typedef struct Universe {   // A universe: number of slices + slice array
     long        *slice_idx;
 } Universe;
 
+#pragma pack(4)
+typedef struct UniverseHeader {
+    char        string[32];
+    uint32_t    version;
+    uint64_t    nslice;
+} UniverseHeader;
+
 // Function definitions
 void vector_add(Vector *dst, Vector *a, Vector *b);
 void vector_sub(Vector *dst, Vector *a, Vector *b);
 double vector_dot(Vector *a, Vector *b);
+void vector_cross(Vector *dst, Vector *a, Vector *b);
+int vector_equal(Vector *a, Vector *b);
 
 int slice_free(Slice *s);
 Slice *slice_copy(Slice *s);

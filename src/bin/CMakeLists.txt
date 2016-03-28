@@ -1,0 +1,7 @@
+set(EXECUTABLES sym ubuild ucat udivide uextract umerge)
+file(GLOB LOCAL_INCLUDES "*.h")
+foreach(e IN ITEMS ${EXECUTABLES})
+    add_executable(${e} "${e}.c" ${INCLUDES} ${LOCAL_INCLUDES})
+    target_link_libraries(${e} ${LIBRARIES})
+endforeach(e)
+unset(LOCAL_INCLUDES)

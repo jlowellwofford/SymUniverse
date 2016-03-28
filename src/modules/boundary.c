@@ -1,6 +1,6 @@
 //
-//  mod_dummy.c
-//  SymUniverse - Dummy module that does nothing. Can be used as a template.
+//  integrate.c
+//  SymUniverse - This module integrates the system by one timestep.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
 //  Copyright © 2016 J. Lowell Wofford. All rights reserved.
@@ -36,6 +36,7 @@
 #include <math.h>
 #include "sym.h"
 #include "universe.h"
+#include "boundaries.h"
 #include "SymUniverseConfig.h"
 
 #define EXPORT __attribute__((visibility("default")))
@@ -44,7 +45,7 @@
 #define _INTEGRATION_METH_LEAPFROG  1   // Use s velocites to calculate displacement (Symplectic evolution)
 
 #define DEFAULT_TIMESTEP            1.0 // Time interval per slice
-#define DEFAULT_BOUNDARY_METH       _boundary_periodic
+#define DEFAULT_BOUNDARY_METH       boundary_periodic
 #define DEFAULT_INTEGRATION_METH    _integrate_leapfrog
 
 #define _NOPT           3
@@ -62,82 +63,6 @@ typedef struct {
     int (*integration_method)(Particle *p, double ts);
     double timestep;
 } Config;
-
-int _boundary_periodic(Slice *s, Particle *p) {
-    if(p->pos.x > s->bound_max.x) {
-        double bounces;
-        double off = modf((p->pos.x - s->bound_min.x) / (s->bound_max.x - s->bound_min.x), &bounces) * (s->bound_max.x - s->bound_min.x);
-        p->pos.x = s->bound_min.x + off;
-    } else if(p->pos.x < s->bound_min.x) {
-        double bounces;
-        double off = modf(-(p->pos.x - s->bound_min.x) / (s->bound_max.x - s->bound_min.x), &bounces) * (s->bound_max.x - s->bound_min.x);
-        p->pos.x = s->bound_max.x - off;
-    }
-    
-    if(p->pos.y > s->bound_max.y) {
-        double bounces;
-        double off = modf((p->pos.y - s->bound_min.y) / (s->bound_max.y - s->bound_min.y), &bounces) * (s->bound_max.y - s->bound_min.y);
-        p->pos.y = s->bound_min.y + off;
-    } else if(p->pos.y < s->bound_min.y) {
-        double bounces;
-        double off = modf(-(p->pos.y - s->bound_min.y) / (s->bound_max.y - s->bound_min.y), &bounces) * (s->bound_max.y - s->bound_min.y);
-        p->pos.y = s->bound_max.y - off;
-    }
-    
-    if(p->pos.z > s->bound_max.z) {
-        double bounces;
-        double off = modf((p->pos.z - s->bound_min.z) / (s->bound_max.z - s->bound_min.z), &bounces) * (s->bound_max.z - s->bound_min.z);
-        p->pos.z = s->bound_min.z + off;
-    } else if(p->pos.z < s->bound_min.z) {
-        double bounces;
-        double off = modf(-(p->pos.z - s->bound_min.z) / (s->bound_max.z - s->bound_min.z), &bounces) * (s->bound_max.z - s->bound_min.z);
-        p->pos.z = s->bound_max.z - off;
-    }
-    return MOD_RET_OK;
-}
-
-int _boundary_elastic(Slice *s, Particle *p) {  // Biggest complication here is we have to consider particles that travel more than 1 boundary length beyond
-    if(p->pos.x > s->bound_max.x) {
-        double bounces;
-        double off = modf((p->pos.x - s->bound_min.x) / (s->bound_max.x - s->bound_min.x), &bounces) * (s->bound_max.x - s->bound_min.x);
-        p->pos.x = ((int)bounces % 2) ? s->bound_min.x + off : s->bound_max.x - off;
-    } else if(p->pos.x < s->bound_min.x) {
-        double bounces;
-        double off = modf(-(p->pos.x - s->bound_min.x) / (s->bound_max.x - s->bound_min.x), &bounces) * (s->bound_max.x - s->bound_min.x);
-        p->pos.x = ((int)bounces % 2) ? s->bound_max.x - off : s->bound_min.x + off;
-    }
-    
-    if(p->pos.y > s->bound_max.y) {
-        double bounces;
-        double off = modf((p->pos.y - s->bound_min.y) / (s->bound_max.y - s->bound_min.y), &bounces) * (s->bound_max.y - s->bound_min.y);
-        p->pos.y = ((int)bounces % 2) ? s->bound_min.y + off : s->bound_max.y - off;
-    } else if(p->pos.y < s->bound_min.y) {
-        double bounces;
-        double off = modf(-(p->pos.y - s->bound_min.y) / (s->bound_max.y - s->bound_min.y), &bounces) * (s->bound_max.y - s->bound_min.y);
-        p->pos.y = ((int)bounces % 2) ? s->bound_max.y - off : s->bound_min.y + off;
-    }
-    
-    if(p->pos.z > s->bound_max.z) {
-        double bounces;
-        double off = modf((p->pos.z - s->bound_min.z) / (s->bound_max.z - s->bound_min.z), &bounces) * (s->bound_max.z - s->bound_min.z);
-        p->pos.z = ((int)bounces % 2) ? s->bound_min.z + off : s->bound_max.z - off;
-    } else if(p->pos.z < s->bound_min.z) {
-        double bounces;
-        double off = modf(-(p->pos.z - s->bound_min.z) / (s->bound_max.z - s->bound_min.z), &bounces) * (s->bound_max.z - s->bound_min.z);
-        p->pos.z = ((int)bounces % 2) ? s->bound_max.z - off : s->bound_min.z + off;
-    }
-    return MOD_RET_OK;
-}
-
-int _boundary_diffuse(Slice *s, Particle *p) {
-    if(p->pos.x > s->bound_max.x | p->pos.x < s->bound_min.x |
-       p->pos.y > s->bound_max.y | p->pos.y < s->bound_min.y |
-       p->pos.z > s->bound_max.z | p->pos.z < s->bound_min.z) {
-        p->flags |= PARTICLE_FLAG_DELETE;
-        return MOD_RET_PACK;
-    }
-    return MOD_RET_OK;
-}
 
 int _integrate_pre(Particle *p, double ts) {
     p->pos.x += p->vel.x * ts;
@@ -189,13 +114,16 @@ void *init(char *cfg_str) {           // Called when added to the pipeline.  Not
         switch(_get_opt_idx(opt)) {
             case _OPT_BOUNDARY:
                 if(strcmp(val, "periodic") == 0) {
-                    cfg->boundary_method = _boundary_periodic;
+                    cfg->boundary_method = boundary_periodic;
                 } else if(strcmp(val, "elastic") == 0) {
-                    cfg->boundary_method = _boundary_elastic;
+                    cfg->boundary_method = boundary_elastic;
                 } else if(strcmp(val, "diffuse") == 0) {
-                    cfg->boundary_method = _boundary_diffuse;
+                    cfg->boundary_method = boundary_diffuse;
+                } else if(strcmp(val, "none") == 0) {
+                    MPRINTF("Warning: you have chosen not to use boundary conditions. Make sure this is handled by another module!\n", NULL);
+                    cfg->boundary_method = boundary_none;
                 } else {
-                    MPRINTF("boundary must take one of the options: periodic, elastic or diffuse.\n", NULL);
+                    MPRINTF("boundary must take one of the options: periodic, elastic, diffuse or none.\n", NULL);
                     free(cfg);
                     return NULL;
                 }
@@ -245,6 +173,9 @@ void help(void) {
     MPRINTF("\t\t- periodic (particles pass from one side to the other, i.e. Asteroids (tm) style).\n", NULL);
     MPRINTF("\t\t- elastic (particles bounce off of walls elastically).\n", NULL);
     MPRINTF("\t\t- diffuse (particles escape the system and disappear).\n", NULL);
+    MPRINTF("\t\t- none (no boundaries enforced.  Use this if you are going to use collision detection.", NULL);
+    MPRINTF("\t\t\tWarning: you need to do boundary enforcement at some point.\n",NULL);
+    MPRINTF("\t\t\tIf you've disabled it here, make sure another module does it!\n", NULL);
     MPRINTF("\t- method: integration method (default: leapfrog)\n", NULL);
     MPRINTF("\t\t- pre (particles move based on velocities in the previous slice, then velocities are adjusted.\n", NULL);
     MPRINTF("\t\t- leapfrog (particle velocities are adjusted, then positions are adjusted accordingly.  This preseverse symplectic evolution.\n", NULL);

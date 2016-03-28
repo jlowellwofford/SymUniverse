@@ -19,7 +19,7 @@
 #define DEFAULT_TEMP 300
 #define DEFAULT_NBODY 1000
 #define DEFAULT_MASS 938            // Mass of the proton in MeV
-#define DEFAULT_RADIUS 1
+#define DEFAULT_RADIUS 5E-11        // Bohr radius (m)
 #define DEFAULT_CHARGE 0
 #define DEFAULT_BOUND_MIN 0
 #define DEFAULT_BOUND_MAX 1
@@ -59,7 +59,7 @@ void help(const char *cmd) {
            "\t-n <num> : Number of particles (default: %u)\n"
            "\t-m <mass> : Mass of particles (default: %d)\n"
            "\t-c <charge> : Charge of the particles (default: %d)\n"
-           "\t-r <radius> : Radius of particles (default: %d)\n"
+           "\t-r <radius> : Radius of particles (default: %f)\n"
            "\t-b <bound_spec> : Boundary corners, format xmin,ymin,zmin,xmax,ymax,zmax of min,max for a cube.\n"
            "\t-B <box_spec> : Box corners, format xmin,ymin,zmin,xmax,ymax,zmax of min,max for a cube.\n"
            "\t\tThe box allows particles to be contained in a box, even if the boundary is larger.\n"

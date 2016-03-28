@@ -1,6 +1,6 @@
 //
-//  mod_dummy.c
-//  SymUniverse - Dummy module that does nothing. Can be used as a template.
+//  hscollide.c
+//  SymUniverse - Module for doing simple hard sphere collision detection and resolution.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
 //  Copyright © 2016 J. Lowell Wofford. All rights reserved.
@@ -30,8 +30,11 @@
 
 // -- FINAL NOTE: A module can do just about anything.  Be clear to the user what to expect.
 
+// FIXME: This module doesn't do anything yet!
+
 #include <stdio.h>
 #include <stdlib.h>
+#include <math.h>
 #include "sym.h"
 #include "universe.h"
 #include "SymUniverseConfig.h"
@@ -39,9 +42,9 @@
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
-const char *name = "cleara";                 // Name _must_ be unique
+const char *name = "hscollide";      // Name _must_ be unique
 
-typedef struct {
+typedef struct {                    // Not currently used, but there for later use
     int configed;
 } Config;
 
@@ -59,7 +62,7 @@ EXPORT
 void *init(char *cfg_str) {                 // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
     Config *cfg = malloc(sizeof(Config));
     cfg->configed = 1;
-    return (void *)cfg;                 // This void pointer refers to internal configuration.  Can be anything useful.
+    return (void *)cfg;                     // This void pointer refers to internal configuration.  Can be anything useful.
 }
 
 EXPORT
@@ -69,18 +72,46 @@ void deinit(Config *cfg) {                    // Called when pipeline is deconst
 
 EXPORT
 void help(void) {
-    MPRINTF("Simple module to clear accelerations (instead of using a force module).\n", NULL);
-    MPRINTF("Asymptotic performance: O(N).\n", NULL);
-    MPRINTF("This modules does not take any options.", NULL);
-    MPRINTF("Example: -m cleara\n", NULL);
+    MPRINTF("This module resolves hard sphere collisions.\n", NULL);
+    MPRINTF("This simple algorithm is O(NlogN), and takes no options.\n", NULL);
+    MPRINTF("Typically this should be placed after forces and integration.\n", NULL);
+    MPRINTF("For best results, disable boundary detection in integrate and use the boundary module after this.\n", NULL);
 }
 
+// TODO: It would be nice to have a recursive, time-ordered collision detection option.
+// FIXME: This algorithm assumes you are using leapfrog integration.  Should probably provide an option.
 EXPORT
 int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
-    for(int i = 0; i < s->nbody; i++) {
-        s->bodies[i].acc.x = 0;
-        s->bodies[i].acc.y = 0;
-        s->bodies[i].acc.z = 0;
+    // This is a fairly stupid algorithm.  Should be replaced by something better.
+    // We iterate on ps so that we ignore any created bodies.
+    for(int i = 0; i < ps->nbody; i++) {
+        if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
+        for(int j = i+1; j < ps->nbody; j++) {
+            if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
+            // Basic method: treat everything as if it is in the rest frame of i.
+            //               Then, find the closest approach and compare to the sum of the two radii.
+            // See http://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html for info on the line-to-point formula.
+            struct {
+                Vector ppos;
+                Vector pos;
+                Vector r;
+            } rf;
+            
+            if(vector_equal(&s->bodies[i].vel, &s->bodies[j].vel)) { continue; } // No collision, and would cause divide by zero.
+                                                                                 // Note: we don't check for the off chance they're on top of each other.
+            
+            vector_sub(&rf.ppos, &ps->bodies[j].pos, &s->bodies[i].pos);
+            vector_sub(&rf.pos, &s->bodies[j].pos, &s->bodies[i].pos);
+            vector_sub(&rf.r, &rf.pos, &rf.ppos);
+            double r = sqrt(vector_dot(&rf.r, &rf.r));
+            vector_cross(&rf.r, &rf.ppos, &rf.pos);
+            double closest = sqrt(vector_dot(&rf.r, &rf.r)) / r;
+            
+            if(closest <= s->bodies[i].radius + s->bodies[j].radius) {  // Collision detected, collide elastically
+                // TODO: Haven't actually wroten collision resolution!
+            }
+        }
     }
+    
     return MOD_RET_OK;                      // Return value can control flow of overall execution, see MOD_RET_*
 }
