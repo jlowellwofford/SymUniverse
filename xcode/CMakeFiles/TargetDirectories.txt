@@ -1,0 +1,16 @@
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/CMakeFiles/ALL_BUILD.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/CMakeFiles/ZERO_CHECK.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/lib/CMakeFiles/universe.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/lib/CMakeFiles/boundaries.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/bin/CMakeFiles/ubuild.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/bin/CMakeFiles/udivide.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/bin/CMakeFiles/sym.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/bin/CMakeFiles/ucat.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/bin/CMakeFiles/umerge.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/bin/CMakeFiles/uextract.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/modules/CMakeFiles/cleara.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/modules/CMakeFiles/dummy.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/modules/CMakeFiles/integrate.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/modules/CMakeFiles/boundary.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/modules/CMakeFiles/fgrav.dir
+/Users/lowell/Dropbox/Dev/SymUniverse/xcode/src/modules/CMakeFiles/hscollide.dir
