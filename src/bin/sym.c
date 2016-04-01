@@ -266,6 +266,8 @@ int main(int argc, const char * argv[]) {   // Entry point
         if(ret & MOD_RET_ABRT) { exit(-1); }            // Module requested abort without append
         if(ret & MOD_RET_EXIT) { exit_loop = 1; }       // Module requested exit
         if(ret & MOD_RET_PACK) { slice_pack(slice); }   // Module thinks we need to repack
+        else { slice_clear_create(slice); }             // This is redundant if we run slice_pack
+                                                        // ???: Could make clear_create based on ret value.
         
         universe_append_slice(cfg.universe, slice);
         slice_free(pslice);

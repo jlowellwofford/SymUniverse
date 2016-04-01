@@ -25,6 +25,8 @@ set(LIBRARIES universe boundaries)
 # Add subdirectories
 add_subdirectory(src)
 
+add_custom_target(docs ALL SOURCES "LICENSE" "README.md")
+
 # // TODO: Setup install directives
 #install(TARGETS sym ubuild umerge ucat uextract udivide DESTINATION bin)
 #install(FILES universe.h DESTINATION include)

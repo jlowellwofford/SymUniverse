@@ -41,12 +41,14 @@
 #define EXPORT __attribute__((visibility("default")))
 
 #define DEFAULT_CLEARA 0
+#define DEFAULT_PLUMMER2 0      // Used to impose a "Plummer sphere".  Shouldn't be needed if we're doing hscollide.
 
 EXPORT
 const char *name = "fgrav";      // Name _must_ be unique
 
 typedef struct {
     int cleara;
+    double plummer2;            // Plummer distance squared (we never use the un-squared version)
 } Config;
 
 __attribute__((constructor))
@@ -64,6 +66,7 @@ void *init(char *cfg_str) {                 // Called when added to the pipeline
     
     Config *cfg = malloc(sizeof(Config));
     cfg->cleara = DEFAULT_CLEARA;
+    cfg->plummer2 = DEFAULT_PLUMMER2;
 
     while(cfg_str != NULL && cfg_str[0] != '\0') {
         char *val = strsep(&cfg_str, ",");
@@ -75,6 +78,8 @@ void *init(char *cfg_str) {                 // Called when added to the pipeline
                 free(cfg);
                 return NULL;
             }
+        } else if(strcmp(opt, "plummer") == 0) {
+            cfg->plummer2 = pow(strtod(val, NULL), 2);
         } else {
             MPRINTF("Option not recognized! See help (-h) for options.\n", NULL);
             free(cfg);
@@ -95,10 +100,13 @@ void help(void) {
     MPRINTF("This module calculates gravitational acceleration.\n", NULL);
     MPRINTF("This is a simplistic algorithm with asymptotic performance of O(NlogN).\n", NULL);
     MPRINTF("Usually, force modules should come first in the pipeline, followed by integration and collision detection.\n", NULL);
-    MPRINTF("There is one available option:\n", NULL);
+    MPRINTF("There two available options:\n", NULL);
     MPRINTF("\t- cleara: reset accelerations to zero before calculating?\n", NULL);
     MPRINTF("\t\tTakes two options: 0 to disable, 1 to enable.\n", NULL);
-    MPRINTF("The first force module in the pipeline should set cleara=1.\n", NULL);
+    MPRINTF("\t\tThe first force module in the pipeline should set cleara=1.\n", NULL);
+    MPRINTF("\t- plummer: Set a plummer distance for potential softening.\n", NULL);
+    MPRINTF("\t\tTakes a double value.  Should be used if we're dealing with point particles.\n", NULL);
+    MPRINTF("\\t\tThis shouldn't be necessary if we're using particles with physical size, e.g. hscollide.\n", NULL);
     MPRINTF("Example: -m fgrav[cleara=1]\n", NULL);
 }
 
@@ -121,8 +129,8 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
             if(s->bodies[j].flags & PARTICLE_FLAG_DELETE) { continue; }
             Vector r;
             vector_sub(&r, &s->bodies[i].pos, &s->bodies[j].pos);
-            double f = pow(vector_dot(&r, &r),-1.5); // note: this pow() takes about 75% of total compute time
-                                                     // consider pre-computing a table?
+            double f = pow(vector_dot(&r, &r) + cfg->plummer2,-1.5);    // note: this pow() takes about 75% of total compute time
+                                                                        // consider pre-computing a table?
             s->bodies[i].acc.x += s->bodies[j].mass * f * r.x;
             s->bodies[i].acc.y += s->bodies[j].mass * f * r.y;
             s->bodies[i].acc.z += s->bodies[j].mass * f * r.z;

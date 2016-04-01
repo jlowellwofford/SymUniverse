@@ -46,7 +46,8 @@ typedef struct Vector {     // Simple 3-vector
 
 #pragma pack(4)
 typedef struct Particle {   // Particle properties
-    uint64_t    flags;      // _way_ more flag space than we need, but keeps packing nice.
+    uint32_t    flags;      // Flags used by the system to mark particles (e.g. as deleted).
+    uint32_t    uflags;     // Allow users to use custom flags (for module filtering).
     double      mass;
     double      charge;
     double      radius;
@@ -90,6 +91,7 @@ int vector_equal(Vector *a, Vector *b);
 int slice_free(Slice *s);
 Slice *slice_copy(Slice *s);
 void slice_pack(Slice *);
+void slice_clear_create(Slice *s);
 int slice_append_particle(Slice *s, Particle *p);
 
 Universe *universe_create(const char *path);

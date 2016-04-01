@@ -78,38 +78,15 @@ void help(void) {
     MPRINTF("For best results, disable boundary detection in integrate and use the boundary module after this.\n", NULL);
 }
 
-// TODO: It would be nice to have a recursive, time-ordered collision detection option.
-// FIXME: This algorithm assumes you are using leapfrog integration.  Should probably provide an option.
+// !!!: It would be nice to have a recursive, time-ordered collision detection option.
+// FIXME: This algorithm is not yet implemented!
 EXPORT
 int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
-    // This is a fairly stupid algorithm.  Should be replaced by something better.
-    // We iterate on ps so that we ignore any created bodies.
     for(int i = 0; i < ps->nbody; i++) {
-        if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
+        if(s->bodies[i].flags & (PARTICLE_FLAG_DELETE | PARTICLE_FLAG_CREATE)) { continue; }
         for(int j = i+1; j < ps->nbody; j++) {
-            if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
-            // Basic method: treat everything as if it is in the rest frame of i.
-            //               Then, find the closest approach and compare to the sum of the two radii.
-            // See http://mathworld.wolfram.com/Point-LineDistance3-Dimensional.html for info on the line-to-point formula.
-            struct {
-                Vector ppos;
-                Vector pos;
-                Vector r;
-            } rf;
-            
-            if(vector_equal(&s->bodies[i].vel, &s->bodies[j].vel)) { continue; } // No collision, and would cause divide by zero.
-                                                                                 // Note: we don't check for the off chance they're on top of each other.
-            
-            vector_sub(&rf.ppos, &ps->bodies[j].pos, &s->bodies[i].pos);
-            vector_sub(&rf.pos, &s->bodies[j].pos, &s->bodies[i].pos);
-            vector_sub(&rf.r, &rf.pos, &rf.ppos);
-            double r = sqrt(vector_dot(&rf.r, &rf.r));
-            vector_cross(&rf.r, &rf.ppos, &rf.pos);
-            double closest = sqrt(vector_dot(&rf.r, &rf.r)) / r;
-            
-            if(closest <= s->bodies[i].radius + s->bodies[j].radius) {  // Collision detected, collide elastically
-                // TODO: Haven't actually wroten collision resolution!
-            }
+            if(s->bodies[j].flags & (PARTICLE_FLAG_DELETE | PARTICLE_FLAG_CREATE)) { continue; }
+
         }
     }
     
