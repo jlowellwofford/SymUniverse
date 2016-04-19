@@ -51,14 +51,25 @@ int slice_free(Slice *s) {
 
 Slice *slice_copy(Slice *s) {
     Slice *new = malloc(sizeof(Slice));
+    if(new == NULL) {
+        return NULL;
+    }
     memcpy(new, s, sizeof(Slice));
     new->bodies = malloc(sizeof(Particle) * new->nbody);
+    if(new->bodies == NULL) {
+        free(new);
+        return NULL;
+    }
     memcpy(new->bodies, s->bodies, sizeof(Particle) * new->nbody);
     return new;
 }
 
-void slice_pack(Slice *s) {  // Repack particles (e.g. if some have been marked to delete)
+int slice_pack(Slice *s) {  // Repack particles (e.g. if some have been marked to delete)
     Particle *new = malloc(sizeof(Particle) * s->nbody);
+    if(new == NULL) {
+        printf("Memory allocation error.\n");
+        return 0;
+    }
     uint64_t nnew = 0;
     
     for(int i = 0; i < s->nbody; i++) {
@@ -68,9 +79,14 @@ void slice_pack(Slice *s) {  // Repack particles (e.g. if some have been marked 
         nnew++;
     }
     realloc(new, sizeof(Particle) * nnew);
+    if(new == NULL) {
+        printf("Memory allocation error\n");
+        return 0;
+    }
     s->nbody = nnew;
     free(s->bodies);
     s->bodies = new;
+    return 1;
 }
 
 void slice_clear_create(Slice *s) {
@@ -82,8 +98,12 @@ void slice_clear_create(Slice *s) {
 Universe *universe_create(const char *path) {
     UniverseHeader header;
     Universe *u = malloc(sizeof(Universe));
+    if(u == NULL) {
+        printf("Memory allocation error.\n");
+        return NULL;
+    }
     u->path = path;
-    if(access(path, W_OK)) {
+    if(!access(path, W_OK)) {
         printf("Cannot create universe file: file already exists!\n");
         free(u);
         return NULL;
@@ -98,6 +118,11 @@ Universe *universe_create(const char *path) {
     u->is_modified = 0;
     u->nslice = 0;
     u->slice_idx = calloc(1, sizeof(long));
+    if(u->slice_idx == NULL) {
+        printf("Memory allocation error.\n");
+        free(u);
+        return NULL;
+    }
     strncpy(header.string, UNIVERSE_STRING, sizeof(header.string));
     header.version = UNIVERSE_VERSION;
     header.nslice = 0;
@@ -109,6 +134,10 @@ Universe *universe_create(const char *path) {
 Universe *universe_open(const char *path) {
     UniverseHeader header;
     Universe *u = malloc(sizeof(Universe));
+    if(u == NULL) {
+        printf("Memory allocation error.\n");
+        return NULL;
+    }
     u->path = path;
     u->fstream = fopen(path, "r+");
     if(u->fstream == NULL) {
@@ -131,6 +160,12 @@ Universe *universe_open(const char *path) {
     u->nslice = header.nslice;
     
     u->slice_idx = malloc(sizeof(long)*u->nslice);
+    if(u->slice_idx == NULL) {
+        printf("Memory allocation error.\n");
+        fclose(u->fstream);
+        free(u);
+        return NULL;
+    }
     fseek(u->fstream, -(sizeof(long)*u->nslice), SEEK_END);
     fread(u->slice_idx, sizeof(long), u->nslice, u->fstream);
     
@@ -154,10 +189,19 @@ int universe_free(Universe *u) {
 
 Slice *universe_get_slice(Universe *u, uint64_t slice) {
     Slice *s = malloc(sizeof(Slice));
+    if(s == NULL) {
+        printf("Memory allocation error.\n");
+        return NULL;
+    }
     fseek(u->fstream, u->slice_idx[slice], SEEK_SET);
     fread(&s->time, sizeof(uint64_t) + sizeof(Vector), 2, u->fstream); // reads time, nbody and the two boundary vectors
     
     s->bodies = malloc(sizeof(Particle)*s->nbody);
+    if(s->bodies == NULL) {
+        printf("Memory allocation error.\n");
+        free(s);
+        return NULL;
+    }
     fread(s->bodies, sizeof(Particle), s->nbody, u->fstream);
     
     return s;
@@ -183,6 +227,10 @@ int universe_append_slice(Universe *u, Slice *s) {
     fwrite(&header, sizeof(UniverseHeader), 1, u->fstream);
     
     u->slice_idx = realloc(u->slice_idx, sizeof(long)*u->nslice);
+    if(u->slice_idx == NULL) {
+        printf("Memory allocation error.\n");
+        return 0;
+    }
     fseek(u->fstream, -(sizeof(long)*(u->nslice - 1)), SEEK_END);
     u->slice_idx[u->nslice - 1] = ftell(u->fstream);
     
@@ -190,5 +238,5 @@ int universe_append_slice(Universe *u, Slice *s) {
     fwrite(s->bodies, sizeof(Particle), s->nbody, u->fstream);
     fwrite(u->slice_idx, sizeof(long), u->nslice, u->fstream);
     
-    return 0;
+    return 1;
 }

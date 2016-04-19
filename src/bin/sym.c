@@ -78,9 +78,12 @@ void help(const char *cmd) {
     }
 }
 
-void load_module(char *path) {
+int load_module(char *path) {
     ++cfg.nmodules;
-    cfg.modules = realloc(cfg.modules, sizeof(Module) * cfg.nmodules);
+    if((cfg.modules = realloc(cfg.modules, sizeof(Module) * cfg.nmodules)) == NULL) {
+        printf("Memory allocation failure.\n");
+        return 0;
+    }
     Module *m = &cfg.modules[cfg.nmodules - 1];
 
     m->handle = dlopen(path, RTLD_LAZY);
@@ -94,6 +97,7 @@ void load_module(char *path) {
     m->deinit = dlsym(m->handle, "deinit");
     m->help = dlsym(m->handle, "help");
     m->exec = dlsym(m->handle, "exec");
+    return 1;
 }
 
 void load_modules() {
@@ -106,8 +110,14 @@ void load_modules() {
             if(dir->d_namlen < 5) { continue; }
             if(strncmp(&dir->d_name[dir->d_namlen - 4], ".mod", 4) != 0) { continue; }
             char *full_path = calloc(strlen(cfg.module_path) + dir->d_namlen + 2, sizeof(char));
+            if(full_path == NULL) {
+                printf("Memory allocation failure.\n");
+                exit(-1);
+            }
             sprintf(full_path, "%s/%s", cfg.module_path, dir->d_name);
-            load_module(full_path);
+            if(!load_module(full_path)) {
+                exit(-1);
+            }
             free(full_path);
         }
     }
@@ -140,6 +150,10 @@ Module *find_module_by_name(const char *name) {
 
 void init_pipeline(int argc, char *argv[]) {
     cfg.pipeline = realloc(cfg.pipeline, sizeof(Module) * argc);
+    if(cfg.pipeline == NULL) {
+        printf("Memory allocation error.\n");
+        exit(-1);
+    }
     printf("Pipeline: ");
     for(int i = 0; i < argc; i++) {
         char *margv = argv[i];
@@ -181,9 +195,16 @@ int main(int argc, const char * argv[]) {   // Entry point
     cfg.nmodules = 0;
     cfg.npipeline = 0;
     cfg.modules = malloc(sizeof(Module));
-    cfg.pipeline = malloc(sizeof(Module));
-    
+    if(cfg.modules == NULL) {
+        printf("Memory allocation error.\n");
+        exit(-1);
+    }
     atexit(unload_modules);
+    cfg.pipeline = malloc(sizeof(Module));
+    if(cfg.pipeline == NULL) {
+        printf("Memory allocation error.\n");
+        exit(-1);
+    }
     atexit(free_pipeline);
 
     printf("\n%s Version %d.%d by %s\n",
@@ -192,6 +213,10 @@ int main(int argc, const char * argv[]) {   // Entry point
     
     int ch, h = 0, pipe_argc = 0;
     char **pipe_argv = malloc(sizeof(char *));
+    if(pipe_argv == NULL) {
+        printf("Memory allocation error.\n");
+        exit(-1);
+    }
     while((ch = getopt(argc, (char * const *)argv, "hi:o:M:p:m:t:")) != -1) {
         switch (ch) {
             case 'i':
@@ -206,6 +231,10 @@ int main(int argc, const char * argv[]) {   // Entry point
             case 'm':
                 ++pipe_argc;
                 pipe_argv = realloc(pipe_argv, sizeof(char *) * pipe_argc);
+                if(pipe_argv == NULL) {
+                    printf("Memory allocation error.\n");
+                    exit(-1);
+                }
                 pipe_argv[pipe_argc - 1] = optarg;
                 break;
             case 't':
@@ -234,6 +263,10 @@ int main(int argc, const char * argv[]) {   // Entry point
     } else {
         printf("Creating new file for output: %s\n", cfg.out_file);
         cfg.universe = universe_create(cfg.out_file);
+
+    }
+    if(cfg.universe == NULL) {
+        exit(-1);
     }
     atexit(_universe_close);
     
@@ -247,6 +280,9 @@ int main(int argc, const char * argv[]) {   // Entry point
         Universe *iu = universe_open(cfg.in_file);
         pslice = universe_get_last_slice(iu);
         universe_close(iu);
+    }
+    if(pslice == NULL) {
+        exit(-1);
     }
     slice = slice_copy(pslice);
     
@@ -265,14 +301,24 @@ int main(int argc, const char * argv[]) {   // Entry point
         
         if(ret & MOD_RET_ABRT) { exit(-1); }            // Module requested abort without append
         if(ret & MOD_RET_EXIT) { exit_loop = 1; }       // Module requested exit
-        if(ret & MOD_RET_PACK) { slice_pack(slice); }   // Module thinks we need to repack
+        if(ret & MOD_RET_PACK) {                        // Module thinks we need to repack
+            if(!slice_pack(slice)) {
+                exit(-1);                               // slice_pack failed, probably due to memory allocation.
+            }
+        }
         else { slice_clear_create(slice); }             // This is redundant if we run slice_pack
                                                         // ???: Could make clear_create based on ret value.
         
-        universe_append_slice(cfg.universe, slice);
+        if(!universe_append_slice(cfg.universe, slice)) {
+            exit(-1);
+        }
         slice_free(pslice);
         pslice = slice;
         slice = slice_copy(pslice);
+        if(slice == NULL) {
+            printf("Memory allocation error.\n");
+            exit(-1);
+        }
         ++slice->time;
         ++loop_idx;
         if(loop_idx >= cfg.timesteps) {

@@ -1,6 +1,6 @@
 //
 //  fgrav.c
-//  SymUniverse - This module computes gravitational accelerations.
+//  SymUniverse - This module computes gravitational accelerations.  This is a pthread implementation.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
 //  Copyright © 2016 J. Lowell Wofford. All rights reserved.
@@ -34,23 +34,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <math.h>
+#include <pthread.h>
 #include "sym.h"
 #include "universe.h"
 #include "SymUniverseConfig.h"
 
 #define EXPORT __attribute__((visibility("default")))
 
-#define DEFAULT_G 1
 #define DEFAULT_CLEARA 0
 #define DEFAULT_PLUMMER2 0      // Used to impose a "Plummer sphere".  Shouldn't be needed if we're doing hscollide.
+#define DEFAULT_TC 1            // Default thread count (number of worker threads)
 
 EXPORT
-const char *name = "fgrav";      // Name _must_ be unique
+const char *name = "pfgrav";      // Name _must_ be unique
 
 typedef struct {
     int cleara;
     double plummer2;            // Plummer distance squared (we never use the un-squared version)
-    double G;
+    int tc;
 } Config;
 
 __attribute__((constructor))
@@ -68,12 +69,12 @@ void *init(char *cfg_str) {                 // Called when added to the pipeline
     
     Config *cfg;
     if((cfg = malloc(sizeof(Config))) == NULL) {
-        printf("Memory allocation failure.\n");
+        MPRINTF("Memory allocation failure.\n", NULL);
         return NULL;
     }
     cfg->cleara = DEFAULT_CLEARA;
     cfg->plummer2 = DEFAULT_PLUMMER2;
-    cfg->G = DEFAULT_G;
+    cfg->tc = DEFAULT_TC;
 
     while(cfg_str != NULL && cfg_str[0] != '\0') {
         char *val = strsep(&cfg_str, ",");
@@ -87,6 +88,13 @@ void *init(char *cfg_str) {                 // Called when added to the pipeline
             }
         } else if(strcmp(opt, "plummer") == 0) {
             cfg->plummer2 = pow(strtod(val, NULL), 2);
+        } else if(strcmp(opt, "tc") == 0) {
+            cfg->tc = atoi(val);
+            if(cfg->tc < 1) {
+                MPRINTF("Thread count must be greater than 1!\n", NULL);
+                free(cfg);
+                return NULL;
+            }
         } else {
             MPRINTF("Option not recognized! See help (-h) for options.\n", NULL);
             free(cfg);
@@ -105,7 +113,8 @@ void deinit(Config *cfg) {                    // Called when pipeline is deconst
 EXPORT
 void help(void) {
     MPRINTF("This module calculates gravitational acceleration.\n", NULL);
-    MPRINTF("This is a simplistic algorithm with asymptotic performance of O(N^2).\n", NULL);
+    MPRINTF("This is a pthread implementation of the fgrav module.\n", NULL);
+    MPRINTF("This is a simplistic algorithm with asymptotic performance of O(NlogN).\n", NULL);
     MPRINTF("Usually, force modules should come first in the pipeline, followed by integration and collision detection.\n", NULL);
     MPRINTF("There two available options:\n", NULL);
     MPRINTF("\t- cleara: reset accelerations to zero before calculating?\n", NULL);
@@ -114,11 +123,67 @@ void help(void) {
     MPRINTF("\t- plummer: Set a plummer distance for potential softening.\n", NULL);
     MPRINTF("\t\tTakes a double value.  Should be used if we're dealing with point particles.\n", NULL);
     MPRINTF("\t\tThis shouldn't be necessary if we're using particles with physical size, e.g. hscollide.\n", NULL);
-    MPRINTF("Example: -m fgrav[cleara=1]\n", NULL);
+    MPRINTF("\t- tc: Set the number of worker threads.\n", NULL);
+    MPRINTF("\t\tThis takes an integer value.  The default is 1, so this should probably always be set.\n", NULL);
+    MPRINTF("Example: -m pfgrav[cleara=1,tc=8]\n", NULL);
+}
+
+typedef struct {
+    int     id;
+    Config  *cfg;
+    Slice   *s;
+    Vector  *a;
+} ThreadConfig;
+
+void *_thread_exec(void *cfg) {
+    ThreadConfig tcfg = *(ThreadConfig *)cfg;
+    
+    // Some brute force round robbining
+    int loops = tcfg.s->nbody / tcfg.cfg->tc;
+    if(loops * tcfg.cfg->tc + tcfg.id < tcfg.s->nbody) { ++loops; }
+    
+    for(int i = 0; i < loops; i++) {
+        int c = i * tcfg.cfg->tc + tcfg.id;
+        if(tcfg.s->bodies[c].flags & PARTICLE_FLAG_DELETE) { continue; }
+        for(int j = c + 1; j < tcfg.s->nbody; j++) {
+            if(tcfg.s->bodies[j].flags & PARTICLE_FLAG_DELETE) { continue; }
+            Vector r;
+            vector_sub(&r, &tcfg.s->bodies[c].pos, &tcfg.s->bodies[j].pos);
+            double f = pow(vector_dot(&r, &r) + tcfg.cfg->plummer2,-1.5);    // note: this pow() takes about 75% of total compute time
+            // consider pre-computing a table?
+            tcfg.a[i].x += tcfg.s->bodies[j].mass * f * r.x;
+            tcfg.a[i].y += tcfg.s->bodies[j].mass * f * r.y;
+            tcfg.a[i].z += tcfg.s->bodies[j].mass * f * r.z;
+            tcfg.a[j].x -= tcfg.s->bodies[i].mass * f * r.x;
+            tcfg.a[j].y -= tcfg.s->bodies[i].mass * f * r.y;
+            tcfg.a[j].z -= tcfg.s->bodies[i].mass * f * r.z;
+        }
+    }
+    pthread_exit(NULL);
 }
 
 EXPORT
 int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps, s) -> s.  Should _not_ modify ps.  Uses cfg to specify pipeline params.
+    pthread_t *threads = malloc(sizeof(pthread_t) * cfg->tc);
+    if(threads == NULL) {
+        MPRINTF("Memory allocation error.\n", NULL);
+        return MOD_RET_ABRT;
+    }
+    pthread_attr_t attr;
+    Vector *a = calloc(s->nbody * cfg->tc, sizeof(Vector));  // All (replicated) accelerations.  This is a little messy and a memory hog.
+    if(a == NULL) {
+        MPRINTF("Memory allocation error.\n", NULL);
+        free(threads);
+        return MOD_RET_ABRT;
+    }
+    ThreadConfig *thread_cfg = malloc(sizeof(ThreadConfig) * cfg->tc);
+    if(thread_cfg == NULL) {
+        free(threads);
+        free(a);
+        MPRINTF("Memory allocation error.\n", NULL);
+        return MOD_RET_ABRT;
+    }
+    
     // Slightly less efficient to do this separately, but makes the code reusable later
     // (e.g. for a parallel version)
     if(cfg->cleara) {
@@ -129,23 +194,41 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
         }
     }
     
-    // The calculation loop
-    for(int i = 0; i < s->nbody; i++) {
-        if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
-        for(int j = i + 1; j < s->nbody; j++) {
-            if(s->bodies[j].flags & PARTICLE_FLAG_DELETE) { continue; }
-            Vector r;
-            vector_sub(&r, &s->bodies[i].pos, &s->bodies[j].pos);
-            double f = pow(vector_dot(&r, &r) + cfg->plummer2,-1.5);    // note: this pow() takes about 75% of total compute time
-                                                                        // consider pre-computing a table?
-            s->bodies[i].acc.x += cfg->G * s->bodies[j].mass * f * r.x;
-            s->bodies[i].acc.y += cfg->G * s->bodies[j].mass * f * r.y;
-            s->bodies[i].acc.z += cfg->G * s->bodies[j].mass * f * r.z;
-            s->bodies[j].acc.x -= cfg->G * s->bodies[i].mass * f * r.x;
-            s->bodies[j].acc.y -= cfg->G * s->bodies[i].mass * f * r.y;
-            s->bodies[j].acc.z -= cfg->G * s->bodies[i].mass * f * r.z;
+    // Start the threads
+    pthread_attr_init(&attr);
+    pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+    for(int i = 0; i < cfg->tc; i++) {
+        thread_cfg[i].cfg = cfg;
+        thread_cfg[i].id = i;
+        thread_cfg[i].a = &a[i * s->nbody];
+        thread_cfg[i].s = s;
+        if(pthread_create(&threads[i], &attr, _thread_exec, (void *)&thread_cfg[i])) {
+            MPRINTF("Failed to create pthread.\n", NULL);
+            free(thread_cfg);
+            free(threads);
+            return MOD_RET_ABRT;
         }
     }
     
+    // Sloppy way of waiting for all the threads
+    for(int i = 0; i < cfg->tc; i++) {
+        void *stat = NULL;
+        pthread_join(threads[i], stat);
+    }
+    
+    // Now merge results
+    for(int i = 0; i < s->nbody; i++) {
+        if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
+        for(int t = 0; t < cfg->tc; t++) {
+            s->bodies[i].acc.x += a[t * s->nbody + i].x;
+            s->bodies[i].acc.y += a[t * s->nbody + i].y;
+            s->bodies[i].acc.z += a[t * s->nbody + i].z;
+        }
+    }
+    
+    free(a);
+    free(thread_cfg);
+    free(threads);
+    //pthread_exit(NULL);
     return MOD_RET_OK;                      // Return value can control flow of overall execution, see MOD_RET_*
 }

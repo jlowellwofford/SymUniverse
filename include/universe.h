@@ -90,7 +90,7 @@ int vector_equal(Vector *a, Vector *b);
 
 int slice_free(Slice *s);
 Slice *slice_copy(Slice *s);
-void slice_pack(Slice *);
+int slice_pack(Slice *);
 void slice_clear_create(Slice *s);
 int slice_append_particle(Slice *s, Particle *p);
 

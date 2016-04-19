@@ -1,4 +1,4 @@
-set(MODULES cleara dummy fgrav hscollide integrate boundary)
+set(MODULES cleara dummy fgrav pfgrav hscollide ptcollide integrate boundary)
 file(GLOB LOCAL_INCLUDES "*.h")
 foreach(m IN ITEMS ${MODULES})
     add_library(${m} MODULE ${m}.c ${INCLUDES} ${LOCAL_INCLUDES})

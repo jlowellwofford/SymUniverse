@@ -184,6 +184,10 @@ int main(int argc, const char *argv[]) {   // Entry point
     s.bound_min.y = cfg.bound_min.y;
     s.bound_min.z = cfg.bound_min.z;
     s.bodies = (Particle *)calloc(cfg.nbody,sizeof(Particle));
+    if(s.bodies == NULL) {
+        printf("Memory allocation error.\n");
+        exit(-1);
+    }
     
     for(uint64_t b = 0; b < cfg.nbody; b++) {
         s.bodies[b].mass = cfg.mass;

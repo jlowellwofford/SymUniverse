@@ -57,7 +57,11 @@ static void finalizer(void) {               // Called when module is closed (dlc
 
 EXPORT
 void *init(char *cfg_str) {                 // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
-    Config *cfg = malloc(sizeof(Config));
+    Config *cfg;
+    if((cfg = malloc(sizeof(Config))) == NULL) {
+        printf("Memory allocation failure.\n");
+        return NULL;
+    }
     cfg->configed = 1;
     return (void *)cfg;                 // This void pointer refers to internal configuration.  Can be anything useful.
 }

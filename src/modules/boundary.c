@@ -1,6 +1,6 @@
 //
-//  integrate.c
-//  SymUniverse - This module integrates the system by one timestep.
+//  boundary.c
+//  SymUniverse - This module enforces boundary conditions.  Use this if you disabled boundaries in integrate.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
 //  Copyright © 2016 J. Lowell Wofford. All rights reserved.
@@ -41,48 +41,19 @@
 
 #define EXPORT __attribute__((visibility("default")))
 
-#define _INTEGRATION_METH_PRE       0   // Use ps velocities to calculate displacement
-#define _INTEGRATION_METH_LEAPFROG  1   // Use s velocites to calculate displacement (Symplectic evolution)
-
-#define DEFAULT_TIMESTEP            1.0 // Time interval per slice
 #define DEFAULT_BOUNDARY_METH       boundary_periodic
-#define DEFAULT_INTEGRATION_METH    _integrate_leapfrog
 
-#define _NOPT           3
+#define _NOPT           1
 #define _OPT_BOUNDARY   0
-#define _OPT_METHOD     1
-#define _OPT_TIMESTEP   2
 
-static const char *_opt_str[_NOPT] = { "boundary", "method", "timestamp" };
+static const char *_opt_str[_NOPT] = { "boundary" };
 
 EXPORT
-const char *name = "integrate";      // Name _must_ be unique
+const char *name = "boundary";      // Name _must_ be unique
 
 typedef struct {
     int (*boundary_method)(Slice *s, Particle *p);
-    int (*integration_method)(Particle *p, double ts);
-    double timestep;
 } Config;
-
-int _integrate_pre(Particle *p, double ts) {
-    p->pos.x += p->vel.x * ts;
-    p->pos.y += p->vel.y * ts;
-    p->pos.z += p->vel.z * ts;
-    p->vel.x += p->acc.x * ts;
-    p->vel.y += p->acc.y * ts;
-    p->vel.z += p->acc.z * ts;
-    return MOD_RET_OK;
-}
-
-int _integrate_leapfrog(Particle *p, double ts) {
-    p->vel.x += p->acc.x * ts;
-    p->vel.y += p->acc.y * ts;
-    p->vel.z += p->acc.z * ts;
-    p->pos.x += p->vel.x * ts;
-    p->pos.y += p->vel.y * ts;
-    p->pos.z += p->vel.z * ts;
-    return MOD_RET_OK;
-}
 
 int _get_opt_idx(const char *opt_str) {
     for(int i = 0; i < _NOPT; i++) {
@@ -103,10 +74,12 @@ static void finalizer(void) {               // Called when module is closed (dlc
 
 EXPORT
 void *init(char *cfg_str) {           // Called when added to the pipeline.  Note: the pipeline can have multiple instances of a module with different cfg.
-    Config *cfg = malloc(sizeof(Config));
+    Config *cfg;
+    if((cfg = malloc(sizeof(Config))) == NULL) {
+        printf("Memory allocation failure.\n");
+        return NULL;
+    }
     cfg->boundary_method = DEFAULT_BOUNDARY_METH;
-    cfg->integration_method = DEFAULT_INTEGRATION_METH;
-    cfg->timestep = DEFAULT_TIMESTEP;
     
     while(cfg_str != NULL && cfg_str[0] != '\0') {
         char *val = strsep(&cfg_str, ",");
@@ -128,27 +101,8 @@ void *init(char *cfg_str) {           // Called when added to the pipeline.  Not
                     return NULL;
                 }
                 break;
-            case _OPT_METHOD:
-                if(strcmp(val, "pre") == 0) {
-                    cfg->integration_method = _integrate_pre;
-                } else if(strcmp(val, "leapfrog") == 0 ) {
-                    cfg->integration_method = _integrate_leapfrog;
-                } else {
-                    MPRINTF("method must take one of the options: pre or leapfrog.\n", NULL);
-                    free(cfg);
-                    return NULL;
-                }
-                break;
-            case _OPT_TIMESTEP:
-                cfg->timestep = strtod(val, NULL);
-                if(cfg->timestep <= 0) {
-                    MPRINTF("timestep must be greater than zero.\n", NULL);
-                    free(cfg);
-                    return NULL;
-                }
-                break;
             default:
-                MPRINTF("Invalid argument, %s.  Valid options are: boundary=?,method=?,timestep=?\n", opt);
+                MPRINTF("Invalid argument, %s.  Valid options are: boundary=?\n", opt);
                 free(cfg);
                 return NULL;
         }
@@ -164,9 +118,9 @@ void deinit(Config *cfg) {                  // Called when pipeline is deconstru
 
 EXPORT
 void help(void) {
-    MPRINTF("This module does timestep integration.\n", NULL);
+    MPRINTF("This module enforces boundary conditions.\n", NULL);
     MPRINTF("This is a simple algorithm with O(N) asymptotic performance.\n", NULL);
-    MPRINTF("Integration should typically happen after forces and before collision detection.\n", NULL);
+    MPRINTF("This will often be near the end of your pipeline, and should happen after collision detection.\n", NULL);
     MPRINTF("Initialization parameters take the form: option1=value1,option2=value2,...\n", NULL);
     MPRINTF("Available options are:\n", NULL);
     MPRINTF("\t- boundary: boundary conditions (default: periodic)\n", NULL);
@@ -176,11 +130,7 @@ void help(void) {
     MPRINTF("\t\t- none (no boundaries enforced.  Use this if you are going to use collision detection.", NULL);
     MPRINTF("\t\t\tWarning: you need to do boundary enforcement at some point.\n",NULL);
     MPRINTF("\t\t\tIf you've disabled it here, make sure another module does it!\n", NULL);
-    MPRINTF("\t- method: integration method (default: leapfrog)\n", NULL);
-    MPRINTF("\t\t- pre (particles move based on velocities in the previous slice, then velocities are adjusted.\n", NULL);
-    MPRINTF("\t\t- leapfrog (particle velocities are adjusted, then positions are adjusted accordingly.  This preseverse symplectic evolution.\n", NULL);
-    MPRINTF("\t- timestep: takes any double value greater than zero.  This is the time period between each slice. (default: 1.0)\n", NULL);
-    MPRINTF("Example: -m integrate[boundary=periodic,method=leapfrog,timestep=0.001]\n", NULL);
+    MPRINTF("Example: -m boundary[boundary=periodic]\n", NULL);
 }
 
 EXPORT
@@ -188,7 +138,6 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
     int ret = MOD_RET_OK;
     for(int i = 0; i < s->nbody; i++) {
         if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
-        ret |= cfg->integration_method(&s->bodies[i], cfg->timestep);
         ret |= cfg->boundary_method(s, &s->bodies[i]);
     }
     return ret;                             // Return value can control flow of overall execution, see MOD_RET_*
