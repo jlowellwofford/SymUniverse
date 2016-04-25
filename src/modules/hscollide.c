@@ -42,7 +42,7 @@
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
-const char *name = "ptcollide";      // Name _must_ be unique
+const char *name = "hscollide";      // Name _must_ be unique
 
 typedef struct {                    // Not currently used, but there for later use
     int configed;

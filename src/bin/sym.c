@@ -285,6 +285,7 @@ int main(int argc, const char * argv[]) {   // Entry point
         exit(-1);
     }
     slice = slice_copy(pslice);
+    ++slice->time;
     
     // Main loop
     int loop_idx = 0;
@@ -321,7 +322,7 @@ int main(int argc, const char * argv[]) {   // Entry point
         }
         ++slice->time;
         ++loop_idx;
-        if(loop_idx >= cfg.timesteps) {
+        if(cfg.timesteps >= 0 && loop_idx >= cfg.timesteps) {
             exit_loop = 1;
         }
     }

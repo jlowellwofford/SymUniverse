@@ -138,12 +138,12 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
             vector_sub(&r, &s->bodies[i].pos, &s->bodies[j].pos);
             double f = pow(vector_dot(&r, &r) + cfg->plummer2,-1.5);    // note: this pow() takes about 75% of total compute time
                                                                         // consider pre-computing a table?
-            s->bodies[i].acc.x += cfg->G * s->bodies[j].mass * f * r.x;
-            s->bodies[i].acc.y += cfg->G * s->bodies[j].mass * f * r.y;
-            s->bodies[i].acc.z += cfg->G * s->bodies[j].mass * f * r.z;
-            s->bodies[j].acc.x -= cfg->G * s->bodies[i].mass * f * r.x;
-            s->bodies[j].acc.y -= cfg->G * s->bodies[i].mass * f * r.y;
-            s->bodies[j].acc.z -= cfg->G * s->bodies[i].mass * f * r.z;
+            s->bodies[i].acc.x -= cfg->G * s->bodies[j].mass * f * r.x;
+            s->bodies[i].acc.y -= cfg->G * s->bodies[j].mass * f * r.y;
+            s->bodies[i].acc.z -= cfg->G * s->bodies[j].mass * f * r.z;
+            s->bodies[j].acc.x += cfg->G * s->bodies[i].mass * f * r.x;
+            s->bodies[j].acc.y += cfg->G * s->bodies[i].mass * f * r.y;
+            s->bodies[j].acc.z += cfg->G * s->bodies[i].mass * f * r.z;
         }
     }
     

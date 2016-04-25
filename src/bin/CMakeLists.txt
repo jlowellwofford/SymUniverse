@@ -1,4 +1,4 @@
-set(EXECUTABLES sym ubuild ucat udivide uextract umerge utocsv)
+set(EXECUTABLES sym ubuild ucat udivide uextract umerge utocsv ufromcsv)
 file(GLOB LOCAL_INCLUDES "*.h")
 foreach(e IN ITEMS ${EXECUTABLES})
     add_executable(${e} "${e}.c" ${INCLUDES} ${LOCAL_INCLUDES})

@@ -151,12 +151,12 @@ void *_thread_exec(void *cfg) {
             vector_sub(&r, &tcfg.s->bodies[c].pos, &tcfg.s->bodies[j].pos);
             double f = pow(vector_dot(&r, &r) + tcfg.cfg->plummer2,-1.5);    // note: this pow() takes about 75% of total compute time
             // consider pre-computing a table?
-            tcfg.a[i].x += tcfg.s->bodies[j].mass * f * r.x;
-            tcfg.a[i].y += tcfg.s->bodies[j].mass * f * r.y;
-            tcfg.a[i].z += tcfg.s->bodies[j].mass * f * r.z;
-            tcfg.a[j].x -= tcfg.s->bodies[i].mass * f * r.x;
-            tcfg.a[j].y -= tcfg.s->bodies[i].mass * f * r.y;
-            tcfg.a[j].z -= tcfg.s->bodies[i].mass * f * r.z;
+            tcfg.a[i].x -= tcfg.s->bodies[j].mass * f * r.x;
+            tcfg.a[i].y -= tcfg.s->bodies[j].mass * f * r.y;
+            tcfg.a[i].z -= tcfg.s->bodies[j].mass * f * r.z;
+            tcfg.a[j].x += tcfg.s->bodies[i].mass * f * r.x;
+            tcfg.a[j].y += tcfg.s->bodies[i].mass * f * r.y;
+            tcfg.a[j].z += tcfg.s->bodies[i].mass * f * r.z;
         }
     }
     pthread_exit(NULL);

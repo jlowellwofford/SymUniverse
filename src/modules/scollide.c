@@ -1,6 +1,6 @@
 //
-//  hscollide.c
-//  SymUniverse - Module for doing simple hard sphere collision detection and resolution.
+//  scollide.c
+//  SymUniverse - Module for doing simple sphere collision detection and resolution.  Not very physically accurate.
 //
 //  Created by J. Lowell Wofford on 3/25/16.
 //  Copyright © 2016 J. Lowell Wofford. All rights reserved.
@@ -42,7 +42,7 @@
 #define EXPORT __attribute__((visibility("default")))
 
 EXPORT
-const char *name = "ptcollide";      // Name _must_ be unique
+const char *name = "scollide";      // Name _must_ be unique
 
 typedef struct {                    // Not currently used, but there for later use
     int configed;
@@ -76,8 +76,9 @@ void deinit(Config *cfg) {                    // Called when pipeline is deconst
 
 EXPORT
 void help(void) {
-    MPRINTF("This module resolves hard sphere collisions.\n", NULL);
+    MPRINTF("This module resolves sphere collisions.\n", NULL);
     MPRINTF("This simple algorithm is O(N^2), and takes no options.\n", NULL);
+    MPRINTF("Note: this module isn't very good about conserving physical quantities, but the differences should average out over time.\n", NULL);
     MPRINTF("Typically this should be placed after forces and integration.\n", NULL);
     MPRINTF("For best results, disable boundary detection in integrate and use the boundary module after this.\n", NULL);
 }
@@ -131,11 +132,19 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
             
             // 3. past this point, we know there's a collision
             ++ccount;
+            // The "theory" here is that v1f should be along the line connecting the centers at the point of collision.
+            // The magnitude of v1f is then given by v1f = 2*vel*j.mass/(i.mass+j.mass)*cos(theta)
+            // We then just adjust v1f to conserve linear momentum.
             double tc = - (xi + R) / vel;                   // time of collision
-            double v1f = 2 * s->bodies[j].mass / (s->bodies[j].mass + s->bodies[i].mass) * vel;
-            double v2f = (s->bodies[j].mass - s->bodies[i].mass) / (s->bodies[j].mass + s->bodies[i].mass) * vel;
-            double x1f = v1f * (ts - tc);
-            double x2f = v2f * (ts - tc) - R;
+            
+            double vifx = 2*vel*s->bodies[j].mass/(s->bodies[j].mass + s->bodies[i].mass)*(R*R-b*b)/(R*R);
+            double vify = - 2*vel*s->bodies[j].mass/(s->bodies[j].mass + s->bodies[i].mass)*sqrt(R*R-b*b)/(R*R)*b;
+            double vjfx = - s->bodies[i].mass/s->bodies[j].mass*vifx + vel;
+            double vjfy = - s->bodies[i].mass/s->bodies[j].mass*vify;
+            double xifx = vifx * (ts - tc);
+            double xify = vify * (ts - tc);
+            double xjfx = vjfx * (ts - tc) - sqrt(R*R-b*b);
+            double xjfy = vjfx * (ts - tc) + b;
             
             // 4. return to sym frame
             if(b != 0) {
@@ -148,37 +157,38 @@ int exec(Config *cfg, Slice *ps, Slice *s) {  // Main execution loop.  Maps (ps,
                 uy.z = chi.z / b;
                 // vector_cross(&uz, &ux, &uy);
                 // rotate + translate in one step
-                s->bodies[j].pos.x = x2f * ux.x + b * uy.x + s->bodies[i].pos.x;
-                s->bodies[j].pos.y = x2f * ux.y + b * uy.y + s->bodies[i].pos.y;
-                s->bodies[j].pos.z = x2f * ux.z + b * uy.z + s->bodies[i].pos.z;
-                s->bodies[i].pos.x += x1f * ux.x;
-                s->bodies[i].pos.y += x1f * ux.y;
-                s->bodies[i].pos.z += x1f * ux.z;
+                s->bodies[j].pos.x = xjfx * ux.x + xjfy * uy.x + s->bodies[i].pos.x;
+                s->bodies[j].pos.y = xjfx * ux.y + xjfy * uy.y + s->bodies[i].pos.y;
+                s->bodies[j].pos.z = xjfx * ux.z + xjfy * uy.z + s->bodies[i].pos.z;
+                s->bodies[i].pos.x += xifx * ux.x + xify * uy.x;
+                s->bodies[i].pos.y += xifx * ux.y + xify * uy.y;
+                s->bodies[i].pos.z += xifx * ux.z + xify * uy.z;
                 
-                s->bodies[j].vel.x = v2f * ux.x + s->bodies[i].vel.x;
-                s->bodies[j].vel.y = v2f * ux.y + s->bodies[i].vel.y;
-                s->bodies[j].vel.z = v2f * ux.z + s->bodies[i].vel.z;
-                s->bodies[i].vel.x += v1f * ux.x;
-                s->bodies[i].vel.y += v1f * ux.y;
-                s->bodies[i].vel.z += v1f * ux.z;
+                s->bodies[j].vel.x = vjfx * ux.x + vjfy * uy.x + s->bodies[i].vel.x;
+                s->bodies[j].vel.y = vjfx * ux.y + vjfy * uy.y + s->bodies[i].vel.y;
+                s->bodies[j].vel.z = vjfx * ux.z + vjfy * uy.z + s->bodies[i].vel.z;
+                s->bodies[i].vel.x += vifx * ux.x + vify * uy.x;
+                s->bodies[i].vel.y += vifx * ux.y + vify * uy.y;
+                s->bodies[i].vel.z += vifx * ux.z + vify * uy.z;
             } else {                    // in the off chance b = 0, we have a divide by zero, we have to do things differently
-                Vector uv;
-                uv.x = v.x / vel;       // Both position & velocity will lie relative to the velocity unit vector
-                uv.y = v.y / vel;
-                uv.z = v.z / vel;
-                
-                s->bodies[j].pos.x = x2f * uv.x + s->bodies[i].pos.x;
-                s->bodies[j].pos.y = x2f * uv.y + s->bodies[i].pos.y;
-                s->bodies[j].pos.z = x2f * uv.z + s->bodies[i].pos.z;
-                s->bodies[i].pos.x += x1f * uv.x;
-                s->bodies[i].pos.y += x1f * uv.y;
-                s->bodies[i].pos.z += x1f * uv.z;
-                s->bodies[j].vel.x = v2f * uv.x + s->bodies[i].vel.x;
-                s->bodies[j].vel.y = v2f * uv.y + s->bodies[i].vel.y;
-                s->bodies[j].vel.z = v2f * uv.z + s->bodies[i].vel.z;
-                s->bodies[i].vel.x += v1f * uv.x;
-                s->bodies[i].vel.y += v1f * uv.y;
-                s->bodies[i].vel.z += v1f * uv.z;
+                MPRINTF("Oops, we got a collision we couldn't handle.\n", NULL);
+//                Vector uv;
+//                uv.x = v.x / vel;       // Both position & velocity will lie relative to the velocity unit vector
+//                uv.y = v.y / vel;
+//                uv.z = v.z / vel;
+//                
+//                s->bodies[j].pos.x = x2f * uv.x + s->bodies[i].pos.x;
+//                s->bodies[j].pos.y = x2f * uv.y + s->bodies[i].pos.y;
+//                s->bodies[j].pos.z = x2f * uv.z + s->bodies[i].pos.z;
+//                s->bodies[i].pos.x += x1f * uv.x;
+//                s->bodies[i].pos.y += x1f * uv.y;
+//                s->bodies[i].pos.z += x1f * uv.z;
+//                s->bodies[j].vel.x = v2f * uv.x + s->bodies[i].vel.x;
+//                s->bodies[j].vel.y = v2f * uv.y + s->bodies[i].vel.y;
+//                s->bodies[j].vel.z = v2f * uv.z + s->bodies[i].vel.z;
+//                s->bodies[i].vel.x += v1f * uv.x;
+//                s->bodies[i].vel.y += v1f * uv.y;
+//                s->bodies[i].vel.z += v1f * uv.z;
             }
             
         }

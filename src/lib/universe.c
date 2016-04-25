@@ -73,7 +73,7 @@ int slice_pack(Slice *s) {  // Repack particles (e.g. if some have been marked t
     uint64_t nnew = 0;
     
     for(int i = 0; i < s->nbody; i++) {
-        s->bodies[i].flags ^= PARTICLE_FLAG_CREATE;   // Remove CREATE flag.  It's actually faster to do this every time than check and remove.
+        s->bodies[i].flags &= ~PARTICLE_FLAG_CREATE;   // Remove CREATE flag.  It's actually faster to do this every time than check and remove.
         if(s->bodies[i].flags & PARTICLE_FLAG_DELETE) { continue; }
         memcpy(&new[nnew], &s->bodies[i], sizeof(Particle));
         nnew++;
@@ -91,8 +91,15 @@ int slice_pack(Slice *s) {  // Repack particles (e.g. if some have been marked t
 
 void slice_clear_create(Slice *s) {
     for(int i = 0; i < s->nbody; i++) {
-        s->bodies[i].flags ^= PARTICLE_FLAG_CREATE;   // Remove CREATE flag.  It's actually faster to do this every time than check and remove.
+        s->bodies[i].flags &= ~PARTICLE_FLAG_CREATE;   // Remove CREATE flag.  It's actually faster to do this every time than check and remove.
     }
+}
+
+int slice_append_particle(Slice *s, Particle *p) {
+    ++s->nbody;
+    s->bodies = realloc(s->bodies, sizeof(Particle) * s->nbody);
+    memcpy(&s->bodies[s->nbody-1], p, sizeof(Particle));
+    return 0;
 }
 
 Universe *universe_create(const char *path) {
