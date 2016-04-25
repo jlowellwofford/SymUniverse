@@ -7,21 +7,29 @@
 //
 
 #include <stdio.h>
+#include <stdlib.h>
+#include <math.h>
 #include "universe.h"
 
 int main(int argc, char *argv[]) {
     
-    if(argc != 3) {
-        printf("Usage: %s <universe_file> <out_file>\n", argv[0]);
+    if(argc < 3 || argc > 4) {
+        printf("Usage: %s [interval] <universe_file> <out_file>\n", argv[0]);
         return 1;
     }
     
-    Universe *u = universe_open(argv[1]);
+    int argn = 1;
+    int interval = 1;
+    if(argc == 4) {
+        interval = atoi(argv[argn++]);
+    }
+    
+    Universe *u = universe_open(argv[argn++]);
     if(u == NULL) {
         printf("Unable to open universe file: %s\n", argv[1]);
         return 1;
     }
-    FILE *o = fopen(argv[2], "w+");
+    FILE *o = fopen(argv[argn++], "w+");
     if(o == NULL) {
         printf("Unable to open output file: %s\n", argv[2]);
         universe_close(u);
@@ -31,7 +39,8 @@ int main(int argc, char *argv[]) {
     fprintf(o, "time,min.x,min.y,min.z,max.x,max.y,max.z,flags,uflags,mass,charge,radius,"
             "pos.x,pos.y,pos.z,vel.x,vel.y,vel.z,acc.x,acc.y,acc.z\n");
             
-    for(int i = 0; i < u->nslice; i++) {
+    for(int k = 0; k < floor((float)u->nslice/interval); k++) {
+        int i = k * interval;
         Slice *s = universe_get_slice(u, i);
         if(s == NULL) {
             printf("Unable to read slice %d.\n", i);
