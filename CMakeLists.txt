@@ -7,6 +7,17 @@ set (SymUniverse_PROJECT_AUTHOR "J. Lowell Wofford")
 set (SymUniverse_VERSION_MAJOR 1)
 set (SymUniverse_VERSION_MINOR 0)
 
+set (CMAKE_C_FLAGS "-std=gnu99 ${CMAKE_C_FLAGS}")
+if( APPLE )
+	add_definitions( -DAPPLE )
+elseif( CMAKE_SYSTEM_NAME STREQUAL "Linux" )
+	add_definitions( -DLINUX )
+    set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+else( APPLE )
+	message( FATAL_ERROR "System type ${CMAKE_SYSTEM_NAME} is not
+supported!" )
+endif( )
+
 # Setup a compiled .h file
 configure_file (
 	"${PROJECT_SOURCE_DIR}/include/SymUniverseConfig.h.in"
