@@ -23,6 +23,10 @@
 #include "universe.h"
 #include "sym.h"
 #include "SymUniverseConfig.h"
+#ifdef LINUX
+#include <sys/stat.h>
+#include <getopt.h>
+#endif
 
 #define DEFAULT_IN_FILE "in.univ"
 #define DEFAULT_OUT_FILE "out.univ"
@@ -106,6 +110,7 @@ void load_modules() {
     d = opendir(cfg.module_path);
     if(d) {
         while((dir = readdir(d)) != NULL) {
+#ifdef APPLE
             if(dir->d_type != DT_REG) { continue; }
             if(dir->d_namlen < 5) { continue; }
             if(strncmp(&dir->d_name[dir->d_namlen - 4], ".mod", 4) != 0) { continue; }
@@ -115,6 +120,14 @@ void load_modules() {
                 exit(-1);
             }
             sprintf(full_path, "%s/%s", cfg.module_path, dir->d_name);
+#elif LINUX
+            char *full_path = calloc(strlen(cfg.module_path) + strlen(dir->d_name) + 2, sizeof(char));
+            sprintf(full_path, "%s/%s", cfg.module_path, dir->d_name);
+            struct stat buf;
+            if(stat(full_path, &buf)) { free(full_path); continue; }
+            if(!(S_ISREG(buf.st_mode))) { free(full_path); continue; }
+            if(strncmp(&dir->d_name[strlen(dir->d_name) - 4], ".mod", 4) != 0) { free(full_path); continue; }
+#endif
             if(!load_module(full_path)) {
                 exit(-1);
             }
